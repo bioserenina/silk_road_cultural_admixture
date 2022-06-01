@@ -1,0 +1,762 @@
+---
+title: "Cultural clustering"
+output:
+  rmdformats::html_clean:
+  self_contained: true
+thumbnails: false
+lightbox: true
+gallery: true
+highlight: tango
+fig_caption: yes
+use_bookdown: true
+---
+  
+```{r message=FALSE, warning=FALSE, include=FALSE}
+path_abs = 'G:/Il mio Drive/assegno_padova/clustering/Domestic Environments/'
+
+source(paste0(path_abs, 'clustering_R_function_first_raw_2022.R'))
+source(paste0(path_abs , 'clustering_R_function_village_2022.R'))
+library(ggplot2)
+library(reshape)
+library(adegenet)
+library(knitr)
+library(kableExtra)
+library(gridExtra)
+library(grid)
+library(lattice)
+library(cowplot)
+library(pheatmap)
+library(RColorBrewer)
+library(viridis)
+
+all_food = c('LIVER', 'DARK_CHOCOLATE', 'MILK_CHOCOLATE', 'COFFEE', 'ORANGE_JUICE','LEMONS', 'SWEET_BREAD', 'RED_WINE', 'WHITE_WINE', 'BEER', 'VODKA',
+             'PORK_CHOPS', 'HAM', 'WILD_MUSHROOMS', 'ASPARAGUS', 'SPINACH',
+             'CABBAGE', 'GARLIC', 'ONION', 'KILKA', 'OLIVES',
+             'ICE_CREAM', 'COOKED_SALAMI', 'HOT_TEA', 'SARDINES', 'CHILLI_PEPPER',
+             'CAKE', 'LAMB', 'BRANDY', 'PEAS', 'BEANS', 'FAVA_BEANS', 'TOMATOES',
+             'TURNIP', 'WALNUTS', 'POMEGRANATE', 'CUCUMBER', 'WHOLE_MILK', 'YOGURT',
+             'SHEEP_CHEESE', 'MELTED_CHEESE', 'COTTAGE_CHEESE', 'KURUT',
+             'SMOKED_CHEESE', 'SULGUNI', 'SWEET_RICOTTA', 'SALTY_RICOTTA',
+             'BUCKWHEAT', 'DRY_BISCUITS', 'CREAM_BISCUITS', 'EGGPLANT',
+             'COOKED_CARROTS', 'RAW_CARROTS', 'VINEGAR', 'MUTTON', 'ALMONDS',
+             'SOUR_CHERRIES', 'PLUM', 'APPLES', 'HONEY', 'JAM', 'MULBERRY',
+             'DRIED_FRUIT', 'STRAWBERRIES', 'PRUNE', 'PEPPERS', 'ADGIKA', 'DILL',
+             'BARLEY', 'BUTTER', 'WATERMELON', 'BLUEBERRY', 'BLACKBERRY','BANANA',
+             'RICE', 'BEET', 'WHIPPED_CREAM', 'MELON')
+
+### read clusters of food
+
+raw_alcohol = read.table('../correlations_clustering/final_datasets/raw/cluster_1_foods_final.tsv')[,1] 
+raw_pork = read.table('../correlations_clustering/final_datasets/raw/cluster_2_foods_final.tsv')[,1]
+raw_sweets = read.table('../correlations_clustering/final_datasets/raw/cluster_3_foods_final.tsv')[,1]
+raw_veggies = read.table('../correlations_clustering/final_datasets/raw/cluster_4_foods_final.tsv')[,1]
+raw_dairy = read.table('../correlations_clustering/final_datasets/raw/cluster_5_foods_final.tsv')[,1]
+raw_fruits = read.table('../correlations_clustering/final_datasets/raw/cluster_6_foods_final.tsv')[,1]
+```
+
+
+```{r}
+layer = 1
+dataset_type = 'raw'
+cat_to_remove='group_and_single'
+#cat_to_remove='only_group'
+```
+
+## norm matrix {.tabset}
+
+### BIC EVALUATION
+
+```{r, message=FALSE, warning=FALSE}
+
+tab_init = read.table('../dataset/1_all_food_missing_1.tsv', sep="\t", hea=T, row.names=1)
+dataset = tab_init
+
+find_cl <- find.clusters(tab_init, max.n.clust=20, 
+                         pca.select = "percVar", perc.pca = 100,
+                         scale = FALSE, center = FALSE, choose.n.clust=FALSE, 
+                         criterion='diffNgroup')
+
+df_bic = as.data.frame(find_cl$Kstat)
+df_bic$K = rownames(df_bic)
+names(df_bic) = c('bic', 'K')
+df_bic$K = factor(df_bic$K, levels=c(df_bic$K))
+#write.table(df_bic, file = paste0('layer', layer, '_bic_evaluation.tsv'), row.names=TRUE, col.names=FALSE, quote=FALSE, sep="\t")
+selected_bic_df = df_bic[which(df_bic$K == names(find_cl$stat)),]
+selected_bic_df = df_bic[which(df_bic$K == 'K=5'),]
+
+bic_plot = ggplot(data=df_bic, aes(x=K, y=bic, group=1)) +
+  geom_line()+
+  geom_point() + theme_classic() +
+  geom_point(data=selected_bic_df,
+             aes(x=K,y=bic),size=3, color='red') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  geom_text(aes(label = round(bic, digits=2)), hjust = 0, nudge_x = 0.07, size=3)
+
+#pdf('../new_analyses_2022/final_figures/bic_evaluation.pdf', width=6, height=5)
+print(bic_plot)
+#dev.off()
+```
+
+
+```{r loop2, echo=FALSE, message=FALSE, warning=FALSE}
+
+for (k in c(2,3,4,5,6,7)){
+  food_list = all_food
+  
+  grp_fc <- find.clusters(tab_init, max.n.clust=20, pca.select = "percVar", perc.pca = 100,
+                          n.clust = k, scale = FALSE, center = FALSE)
+  
+  dapc_cluster <- dapc(tab_init, grp = grp_fc$grp, var.contrib = TRUE, scale = FALSE, center = FALSE, pca.select = "percVar", perc.pca = 100, n.da = length(grp_fc$grp)- 1)
+  
+  #write.table(format(dapc_cluster$posterior, scientific=FALSE), paste0('final_analyses/',dataset_type,'/DAPC_', layer, '_', k, 'clusters_probs.tsv'), row.names = F, col.names = F,quote = F, sep="\t")
+  
+  tab = read.table('../DATA_FP_ERC_SILK.txt', hea=T, row.names=1)
+  target = rownames(tab_init)
+  tab_sorted = tab[match(target, rownames(tab)),]
+  dataset$paese = tab_sorted$paese
+  dataset$id = rownames(tab_init)
+  dataset$cl =  grp_fc$grp
+  dataset_with_probs = cbind(dataset, dapc_cluster$posterior)
+  
+  write.table(dataset_with_probs, paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, 'clusters_assign_and_probs.tsv'), row.names = F, col.names = T,quote = F, sep="\t")
+  
+  props_plot = preferences_plot_final(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_'), k, food_list, dataset_type, cat_to_remove)[1]
+  plot1 = props_plot[[1]]
+  #plot1
+  
+  pref_plot = preferences_plot_final(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_'), k, food_list, dataset_type, cat_to_remove)[4]
+  plot1_pref = pref_plot[[1]]
+  #plot1_pref
+  
+  plot_f = plot_grid(plot1, plot1_pref, ncol = 2)
+  png(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.props_prefs.png'), height = 2000, width = 5000, res=300)
+  print(plot_f)
+  dev.off()
+  
+  correlations(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_'), k, food_list, dataset_type)
+}
+
+```
+
+### K=4
+
+```{r echo=FALSE, fig.align='center', fig.fullwidth=TRUE, fig.show='hold'}
+k=4
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.props_prefs.png'))
+``` 
+
+```{r echo=FALSE, fig.align='center', fig.fullwidth=TRUE, fig.show='hold'}
+k=4
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.ancestry_correlation.png'))
+``` 
+
+```{r echo=FALSE, fig.show='hold',fig.align='center', fig.fullwidth = TRUE}
+k=4
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.age_status_correlation.png'))
+``` 
+
+### K=5
+
+```{r echo=FALSE, fig.align='center', fig.fullwidth=TRUE, fig.show='hold'}
+k=5
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.props_prefs.png'))
+``` 
+
+```{r echo=FALSE, fig.align='center', fig.fullwidth=TRUE, fig.show='hold'}
+k=5
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.ancestry_correlation.png'))
+``` 
+
+```{r echo=FALSE, fig.show='hold',fig.align='center', fig.fullwidth = TRUE}
+k=5
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.age_status_correlation.png'))
+``` 
+
+```{r}
+k=5
+props_plot_village = preferences_plot_village(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_',layer, '_'), k, food_list)[1]
+plot1_villages = props_plot_village[[1]]
+
+props_plot_ind = preferences_plot_village(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_',layer, '_'), k, food_list)[4]
+plot1_ind = props_plot_ind[[1]]
+
+
+pdf(paste0(path_abs, 'cluster_k5_by_village_ind_rev.pdf'), height = 10, width = 25)
+plot_grid(plot1_villages, plot1_ind, ncol=1, labels=c("A", "B"))
+dev.off()
+
+
+```
+
+### K=6
+
+```{r echo=FALSE, fig.align='center', fig.fullwidth=TRUE, fig.show='hold'}
+k=6
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.props_prefs.png'))
+``` 
+
+```{r echo=FALSE, fig.align='center', fig.fullwidth=TRUE, fig.show='hold'}
+k=6
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.ancestry_correlation.png'))
+``` 
+
+```{r echo=FALSE, fig.show='hold',fig.align='center', fig.fullwidth = TRUE}
+k=6
+knitr::include_graphics(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_', layer, '_', k, '.age_status_correlation.png'))
+``` 
+
+
+## Figure 3 {.tabset}
+
+### Prop plot by village
+```{r}
+dataset_type='raw'
+food_list = all_food
+
+cbPalette = c('cornflowerblue', 'gold', 'firebrick3', 'dodgerblue4', 'forestgreen', 'darkorchid1')
+# assignation ---
+
+df = read.table(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_1_5clusters_assign_and_probs.tsv'), hea=T)
+
+db_with_village = read.table('../food_db_miss_first_norm_village.txt', hea=T, sep="\t")
+rownames(db_with_village) = db_with_village$id
+db_with_village$id = NULL
+target = df$id
+db_with_village$village2 = as.character(db_with_village$village2)
+db_with_village$village = as.character(db_with_village$village)
+df$village = db_with_village[match(target, rownames(db_with_village)),'village2']
+df$village_name = db_with_village[match(target, rownames(db_with_village)),'village']
+df = df[complete.cases(df),]
+
+cl = as.data.frame.matrix(table(df$village_name, df$cl))
+cl_ratio = as.data.frame(t(apply(cl,1,function(x){x/sum(x)})))
+
+cl_ratio$village = rownames(cl_ratio)
+
+cl_m = melt(cl_ratio, id='village')
+
+target = cl_m$village
+cl_m$country = db_with_village[match(target, db_with_village$village),'paese']
+cl_m$country = factor(cl_m$country, levels=c('ARMENIA', 'GEORGIA', 'AZERBAIJAN', 'KAZAKISTAN', 'TAJIKISTAN', 'UZBEKISTAN'))
+
+props_plot = ggplot(cl_m, aes(fill=variable, y=value, x=village)) + 
+  geom_bar(position="stack", stat="identity")+
+  scale_fill_manual(values=cbPalette) + theme_bw() +
+  ylab('Cluster proportions') +
+  theme(legend.position = "None") + labs(fill = "Clusters:") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1, size=11),
+        axis.title.y=element_text(size=11)) +
+  facet_grid(~country, scales="free", space='free') + xlab('')
+
+props_plot_color <- ggplot_gtable(ggplot_build(props_plot))
+strip_right <- which(grepl('strip-t', props_plot_color$layout$name))
+fills <- c("#104e8b2b", "#ff7f2a2b", "#b222222b", "#556b2f2b", "#2a7fff2b", '#cd10762b')
+k <- 1
+for (i in strip_right) {
+  j <- which(grepl('rect', props_plot_color$grobs[[i]]$grobs[[1]]$childrenOrder))
+  props_plot_color$grobs[[i]]$grobs[[1]]$children[[j]]$gp$fill <- fills[k]
+  k <- k+1
+}
+
+grid.draw(props_plot_color)
+
+```
+
+### Pref plot 
+
+```{r}
+
+tab_assign = read.table(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_1_5clusters_assign_and_probs.tsv'), hea=T)
+
+k_columns = tail(names(tab_assign), n=k)
+
+tab_assign_mean = melt(tab_assign, id.vars =c('paese', 'cl', 'id', k_columns)) %>% group_by(cl, variable) %>% summarise(value = mean(value, na.rm = T))
+tab_assign_mean = as.data.frame(tab_assign_mean)
+
+tab_assign_mean$cl = as.factor(tab_assign_mean$cl)
+# melt for kruskal-wallis
+tab_assign_melt = melt(tab_assign, id.vars =c('paese', 'cl', 'id', k_columns))
+
+wilcox_food = c()
+
+for (food in food_list){
+  if (k == 2){
+    if (str_contains(path, 'GMM')){
+      p = unname(wilcox.test(tab_assign[tab_assign$cl == 0, food],tab_assign[tab_assign$cl == 1, food])[3])
+    } else if (str_contains(path, 'DAPC')){
+      p = unname(wilcox.test(tab_assign[tab_assign$cl == 1, food],tab_assign[tab_assign$cl == 2, food])[3])
+    }
+  } else {
+    df = tab_assign_melt[which(tab_assign_melt$variable == food),]
+    p = unname(kruskal.test(value ~ cl, data = df)[3])
+  }
+  
+  if (p[[1]]*length(food_list) < 0.05){
+    wilcox_food = c(wilcox_food, food)
+  }
+}
+
+tab_assign_mean_sign = tab_assign_mean[which(tab_assign_mean$variable %in% wilcox_food),]
+tab_assign_mean_sign$cat = NA
+tab_assign_mean_sign$variable = as.character(tab_assign_mean_sign$variable)
+
+
+if (dataset_type == 'first'){
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% first_muslim)] = 'alcohol and pork'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% first_sweets)] = 'sweets'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% first_veggies)] = 'veggies'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% first_fruits)] = 'fruits'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% first_dairy)] = 'dairy'
+  tab_assign_mean_sign$variable = factor(tab_assign_mean_sign$variable, levels=c(first_muslim, 
+                                                                                 first_sweets,
+                                                                                 first_veggies,
+                                                                                 first_fruits,
+                                                                                 first_dairy))
+  tab_assign_mean_sign$variable = droplevels(tab_assign_mean_sign$variable)
+  
+  tab_assign_mean_sign$cat = factor(tab_assign_mean_sign$cat, levels=c('alcohol and pork', 'sweets', 'veggies', 'fruits', 'dairy'))
+  tab_assign_mean_sign$cat = droplevels(tab_assign_mean_sign$cat)
+  #pch = c(21, 22, 23, 24, 25)
+  #names(pch) = c('alcohol and pork', 'sweets', 'veggies', 'fruits', 'dairy')
+  
+  food_cl_colors = c('#1f77b4',
+                     '#ff7f0e',
+                     '#2ca02c',
+                     '#d62728',
+                     '#9467bd')
+  names(food_cl_colors) = c('alcohol and pork', 'sweets', 'veggies', 'fruits', 'dairy')
+} else if (dataset_type == 'raw' | dataset_type == 'correlations'){
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% raw_pork)] = 'pork'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% raw_alcohol)] = 'alcohol'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% raw_sweets)] = 'sweets'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% raw_fruits)] = 'fruits'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% raw_dairy)] = 'dairy'
+  tab_assign_mean_sign$cat[which(tab_assign_mean_sign$variable %in% raw_veggies)] = 'veggies'
+  tab_assign_mean_sign$variable = factor(tab_assign_mean_sign$variable, levels=c(raw_pork, 
+                                                                                 raw_alcohol,
+                                                                                 raw_sweets,
+                                                                                 raw_fruits,
+                                                                                 raw_dairy,
+                                                                                 raw_veggies))
+  tab_assign_mean_sign$variable = droplevels(tab_assign_mean_sign$variable)
+  #pch = c(21, 22, 23, 24, 25)
+  #names(pch) = c('pork', 'sweets', 'veggies', 'fruits', 'diary')
+  
+  tab_assign_mean_sign$cat = factor(tab_assign_mean_sign$cat, levels=c('pork', 'alcohol','sweets', 'fruits', 'dairy','veggies'))
+  tab_assign_mean_sign$cat = droplevels(tab_assign_mean_sign$cat)
+  
+  food_cl_colors = c('#1f77b4',
+                     '#ff7f0e',
+                     '#2ca02c',
+                     '#d62728',
+                     '#9467bd',
+                     '#e377c2')
+  names(food_cl_colors) = c('dairy', 'pork', 'veggies','fruits','alcohol','sweets')
+  
+} 
+
+tab_assign_mean_sign$variable_lc = tolower(tab_assign_mean_sign$variable)
+tab_assign_mean_sign$variable_lc = gsub("_", " ", tab_assign_mean_sign$variable_lc)
+
+tab_assign_mean_sign = tab_assign_mean_sign[order(tab_assign_mean_sign$variable),]
+
+p_sign <- tab_assign_mean_sign %>%
+  ggplot(aes(variable, value)) +
+  #annotate("rect", xmin=0, xmax=3.5, ymin=-Inf, ymax=Inf, alpha=0.2, fill="#ff7f0e") +
+  #annotate("rect", xmin=3.5, xmax=8.5, ymin=-Inf, ymax=Inf, alpha=0.2, fill="#9467bd") +
+  
+  geom_line(aes(group = cl, color = cl), size = 1.25) + 
+  geom_point(aes(fill=cat), size = 2, shape=21) +
+  labs(x = NULL, y = "Mean cluster preferences") +
+  theme_bw(base_size = 14) +
+  scale_color_manual(values=cbPalette) +
+  #scale_shape_manual(values=pch) + 
+  scale_fill_manual(values=food_cl_colors) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size=11), legend.position = "bottom", 
+        axis.title.y=element_text(size=11)) +
+  #theme(panel.grid.minor = element_line(colour = "gray52",linetype="dashed",size=0.01), 
+  #      panel.grid.major = element_line(colour = "gray52",linetype="dashed",size=0.01)) +
+  scale_x_discrete(labels = tab_assign_mean_sign$variable_lc[which(tab_assign_mean_sign$cl == 1)])
+
+legend_plot = get_legend(p_sign)
+
+p_sign <- tab_assign_mean_sign %>%
+  ggplot(aes(variable, value)) +
+  #annotate("rect", xmin=0, xmax=3.5, ymin=-Inf, ymax=Inf, alpha=0.2, fill="#ff7f0e") +
+  #annotate("rect", xmin=3.5, xmax=8.5, ymin=-Inf, ymax=Inf, alpha=0.2, fill="#9467bd") +
+  
+  geom_line(aes(group = cl, color = cl), size = 1.25) + 
+  geom_point(aes(fill=cat), size = 2, shape=21) +
+  labs(x = NULL, y = "Mean cluster preferences") +
+  theme_bw(base_size = 14) +
+  scale_color_manual(values=cbPalette) +
+  #scale_shape_manual(values=pch) + 
+  scale_fill_manual(values=food_cl_colors) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size=10), legend.position = "None", 
+        axis.title.y=element_text(size=11)) +
+  #theme(panel.grid.minor = element_line(colour = "gray52",linetype="dashed",size=0.01), 
+  #      panel.grid.major = element_line(colour = "gray52",linetype="dashed",size=0.01)) +
+  scale_x_discrete(labels = tab_assign_mean_sign$variable_lc[which(tab_assign_mean_sign$cl == 1)]) +
+  theme(panel.grid.major.x = element_line(linetype = 'dashed', size=0.5),
+        panel.grid.minor.y = element_line(linetype = 'solid', size=0.001),
+        panel.grid.major.y = element_line(linetype = 'solid', size=0.001)) #+
+#geom_rect(aes(xmin = 0, xmax = 4,
+#            ymin = -Inf, ymax = Inf, fill = 'red'))
+
+p_sign
+
+```
+
+### Heatmap
+
+```{r}
+dataset_type='raw'
+food_list = all_food
+tab_assign = read.table(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_1_5clusters_assign_and_probs.tsv'), hea=T)
+
+# mean by ind
+df = as.data.frame(cbind(rowMeans(tab_assign[,raw_pork]),
+                         rowMeans(tab_assign[,raw_alcohol]),
+                         rowMeans(tab_assign[,raw_sweets]),
+                         rowMeans(tab_assign[,raw_fruits]),
+                         rowMeans(tab_assign[,raw_dairy]),
+                         rowMeans(tab_assign[,raw_veggies])))
+names(df) = c('pork', 'alcohol', 'sweets', 'fruits', 'dairy', 'veggies')
+
+df = as.data.frame(cbind(df, tab_assign[,c('cl', 'X1', 'X2', 'X3', 'X4', 'X5', 'paese')]))
+rownames(df) = tab_assign$id
+
+# add villages, sex and age
+
+tab = read.table('../DATA_FP_ERC_SILK.txt', hea=T, row.names=1)
+target = rownames(df)
+tab_sorted = tab[match(target, rownames(tab)),]
+
+all(df$paese == tab_sorted$paese)
+df$village = tab_sorted$village
+df$age = tab_sorted$age
+df$sex = tab_sorted$sex
+
+write.table(df[,c("paese", "village", "age", "sex", "X1", "X2", "X3", "X4", "X5")], file="/Il mio Drive/assegno_padova/clustering/ind_features_df.tsv", sep="\t", row.names = T, col.names = T, quote=F) 
+# add ancestry 
+
+adm = read.table("G:/Il mio Drive/assegno_padova/clustering/Silk_Road_food_clustering/risultati admixture/SR_HO_anc_sources_Pagani_K6.txt")
+int_cols = c("V1","V2","V7", "V8", "V9", "V10", "V11", "V12")
+new_adm = adm[,int_cols]
+names(new_adm) = c('pop', 'id', 'k1', 'k2', 'k3', 'k4', 'k5', 'k6')
+new_adm$pop = factor(new_adm$pop, levels=c('HG', 'EarlyFarmers', 'YamnayaLike', 'IranN/CHG', 
+                                           'CHB.SG', 'YRI.SG', 'ARMENIA', 'AZERBAIJAN', 'GEORGIA', 
+                                           'KAZAKISTAN', 'TAJIKISTAN', 'UZBEKISTAN'))
+
+#library(dplyr)
+#library(tidyr)
+
+new_adm_ = subset(new_adm, pop %in% c('ARMENIA', 'AZERBAIJAN', 'GEORGIA', 
+                                      'KAZAKISTAN', 'TAJIKISTAN', 'UZBEKISTAN'))
+
+new_names = c() 
+for (i in strsplit(new_adm_$id, ':')){
+  new_names = c(new_names, i[2])
+}
+
+rownames(new_adm_) = new_names
+target = rownames(df)
+adm_sorted = new_adm_[match(target, rownames(new_adm_)),]
+names(adm_sorted) = c('pop', 'id', 'CHG', 'EF', 'Yamnaya', 'HG', 'YRI', 'CHB')
+
+df = as.data.frame(cbind(df, adm_sorted[,c('CHG', 'EF', 'Yamnaya', 'HG', 'YRI', 'CHB')]))
+
+# correlations
+
+cl_vars = c('X1', 'X2', 'X3', 'X4', 'X5')
+cl_expl = c('pork', 'alcohol', 'sweets', 'fruits', 'dairy', 'veggies',
+            'CHG', 'EF', 'Yamnaya', 'HG', 'YRI', 'CHB')
+cl_expl_cat = c('paese', 'sex')
+
+cor_mat = cor(df[,c(cl_vars, cl_expl)], method = c("spearman"), use = "complete.obs")
+
+cor_mat_ok = cor_mat[cl_expl,cl_vars]
+
+ann_color = list("cat"=c("pork"="#ff7f0e","alcohol"="#9467bd", 'sweets' = '#e377c2', 'fruits' = '#d62728', 'dairy' = '#1f77b4', 'veggies' = '#2ca02c',
+                         'CHG'='#DC9200', 'EF'='#FFDF00', 'YAM'='#E2A4C6', 'HG'='#B668A1', 'YRI'='#743282', 'CHB'='#441C55'), 
+                 "cluster" = c('X1'="cornflowerblue", 'X2'="gold", 'X3'="firebrick3", 'X4'="dodgerblue4", 'X5'="forestgreen"))
+
+mat1 = as.data.frame(ann_color$cat)
+mat1$cat = rownames(mat1)
+mat1$'ann_color$cat' = NULL
+
+mat2 = as.data.frame(ann_color$cluster)
+mat2$cluster = rownames(mat2)
+mat2$'ann_color$cluster' = NULL
+
+#names(mat) = c('color', 'cat')
+
+paletteLength <- 200
+myColor <- colorRampPalette(c("cornflowerblue", "white", "firebrick1"))(paletteLength)
+myBreaks = c(seq(-1, 1, 0.01))
+
+pheatmap_v = pheatmap(cor_mat_ok, cluster_rows=F, cluster_cols=F,  annotation_row = mat1, annotation_col=mat2, annotation_colors=ann_color, border_color ='black', gaps_row = c(6), annotation_legend=FALSE, annotation_names_row=TRUE, annotation_names_col=TRUE, labels_col=c(1, 2, 3, 4, 5), breaks=myBreaks, color=myColor, cellheight=30, cellwidth = 30, display_numbers = T)
+
+pheatmap_v
+
+```
+
+### Age boxplot and sex barplot
+
+```{r}
+k=5
+dapc = read.table(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_1_5clusters_assign_and_probs.tsv'), hea=T)
+tab = read.table('G:/Il mio Drive/assegno_padova/clustering/Domestic Environments/DATA_FP_ERC_SILK.txt', hea=T, row.names=1)
+target = dapc$id
+tab_sorted = tab[match(target, rownames(tab)),]
+dapc$age = tab_sorted$age
+dapc$STATUS = tab_sorted$STATUS
+dapc$sex = tab_sorted$sex
+#dapc$village = tab_sorted$village
+food_pref = dapc
+
+food_pref$age = as.numeric(food_pref$age)
+food_pref$STATUS = factor(food_pref$STATUS,levels = c("NT", "MT", "ST"))
+food_pref$cl = as.character(food_pref$cl)
+
+my_comparisons <- list()
+my_comparisons_df <- combn(1:k, 2)
+for (col in 1:dim(my_comparisons_df)[2]){
+  my_comparisons[[col]] = my_comparisons_df[,col]
+}
+to_remove = c(1, 3, 6, 9)
+my_comparisons = my_comparisons[-c(to_remove)]
+food_pref$cl = factor(food_pref$cl, levels= c("1", "2", "3", "4", "5"))
+
+boxplot_age = ggboxplot(food_pref, x = "cl", y = "age",
+                        color = "cl", palette = cbPalette, add = "jitter", notch=TRUE)+
+  stat_compare_means(comparisons = my_comparisons, size=4) +
+  #stat_summary(fun.y=mean, geom="point", shape=23, size=4, fill="darkgrey") + theme_classic() +
+  ylab('Age') +
+  xlab('Clusters') + theme(legend.position = "None", axis.title.x=element_blank())
+
+
+df_sex_cl = as.data.frame.matrix(table(food_pref$cl, food_pref$sex))
+df_sex_cl_ratio = as.data.frame(t(apply(df_sex_cl,1,function(x){x/sum(x)})))
+df_sex_cl_ratio$cl = rownames(df_sex_cl_ratio)
+df_sex_cl_ratio = melt(df_sex_cl_ratio, id='cl')
+
+df_sex_cl$cl = rownames(df_sex_cl)
+df_sex_cl_ratio = melt(df_sex_cl, id='cl')
+
+
+my_comparisons1 <- list()
+my_comparisons_df1 <- as.data.frame(combn(1:k, 2))
+
+sex_barplot = ggbarplot(df_sex_cl_ratio, "cl", "value",
+                        fill = "variable", color = "variable", palette = c('#FC4E07', '#00AFBB'),
+                        label = TRUE,
+                        position = position_dodge(0.8), lab.pos = "in", lab.col = "white") + ylim(0, 120) +theme(legend.position = 'None', axis.title.x=element_blank()) 
+
+my_comparisons_df1[3,] = NA
+for (i in 1:dim(my_comparisons_df1)[2]){
+  cla = as.character(my_comparisons_df1[1,i])
+  clb = as.character(my_comparisons_df1[2,i])
+  my_comparisons_df1[3,i] = chisq.test(df_sex_cl[which(df_sex_cl$cl %in% c(cla, clb)),c(1,2)])[3]$p.value
+}
+my_comparisons_df1[4,] = as.numeric(my_comparisons_df1[3,])*10
+my_comparisons_df1 = as.data.frame(t(my_comparisons_df1))
+
+plot_grid(boxplot_age, sex_barplot, ncol = 2)
+
+```
+
+```{r}
+f = plot_grid(props_plot_color, p_sign, labels=c('A', 'B'), ncol = 1, rel_heights = c(1, 1.1))
+g = plot_grid(boxplot_age, sex_barplot, labels=c('D', 'E'), ncol = 1)
+h = plot_grid(pheatmap_v$gtable, g, labels=c('C', ''), ncol = 2, scale=c(0.2, 1))
+j = plot_grid(f, h, ncol = 1, rel_heights = c(1, 0.9))
+
+#pdf('prova_1_numbers.pdf', height = 13, width = 11)
+print(j)
+#dev.off()
+
+```
+
+## suppl  {.tabset}
+
+### religion
+
+```{r}
+val_cl = aggregate(cl_m$value, list(cl_m$variable, cl_m$country), mean)
+
+val_cl_ = val_cl[which(val_cl$Group.1 %in% c('1', '3')), ]
+
+aggregate(val_cl_$x, list(val_cl_$Group.1, val_cl_$Group.2), mean)
+
+# corr with religion stats --> Pew Research Center’s Forum on Religion & Public Life (December 2012), The Global Religious Landscape: A Report on the Size and Distribution of the World's Major Religious Groups as of 2010 (PDF), Pew Research Center, retrieved 20 September 2016
+
+rel = read.table('G:/Il mio Drive/assegno_padova/clustering/Domestic Environments/religion_stats_2022.txt', hea=T)
+rel$Muslim = rel$Muslim/100
+rel$cluster_blue_red  = rel$cluster_blue_red /100
+rel$blue = rel$blue/100
+rel$red = rel$red/100
+
+corr_rel <- ggscatter(rel, x = "Muslim", y = "cluster_blue_red", add = "reg.line",
+                      fill = "country", color="black", add.params = list(color = "grey", linetype='dashed'),
+                      size = 2.5, alpha = 0.6, ggtheme = theme_bw(), shape=22,
+                      label='country',repel = TRUE
+                      #mean.point = TRUE,
+                      #mean.point.size = ifelse(is.numeric(3), 1.5 * 3, 3),
+) + xlim(0, 1) + ylim(0,1) + xlab('Muslim proportion by country') +
+  ylab('Blue cluster proportion') +
+  stat_cor(label.x.npc = 0.05, 
+           label.y.npc = 0.95) + theme_classic() + theme(legend.position = 'None', 
+                                                         axis.title.y=element_text(size=9), 
+                                                         axis.title.x=element_text(size=9)) 
+rel_l = melt(rel, id.vars = c("Muslim", "country"))
+
+corr_rel_ <- ggscatter(rel_l, x = "Muslim", y = "value",
+                       add = "reg.line",                         # Add regression line
+                       #conf.int = TRUE,                          # Add confidence interval
+                       color = "variable", palette= c("purple", "cornflowerblue", "red"),         # Color by groups "cyl"
+                       shape = "country", label='country',repel = TRUE, fill="variable"                             # Change point shape by groups "cyl"
+)+
+  stat_cor(aes(color = variable)) +
+  scale_shape_manual(values = c(21, 22, 23, 24, 25, 7))
+
+corr_rel
+```
+
+### variance analysis (fig 2)
+
+```{r}
+### varianza 
+df = read.table(paste0(path_abs, 'final_analyses_2022/',dataset_type,'/DAPC_norm_1_5clusters_assign_and_probs.tsv'), hea=T)
+db_with_village = read.table('../food_db_miss_first_norm_village.txt', hea=T, sep="\t")
+rownames(db_with_village) = db_with_village$id
+db_with_village$id = NULL
+target = df$id
+db_with_village$village2 = as.character(db_with_village$village2)
+db_with_village$village = as.character(db_with_village$village)
+df$village = db_with_village[match(target, rownames(db_with_village)),'village2']
+df$village_name = db_with_village[match(target, rownames(db_with_village)),'village']
+df = df[complete.cases(df),]
+
+#loop
+
+mean_paese = aggregate(df[, c('X1', 'X2', 'X3', 'X4', 'X5')], list(df$paese), mean)
+mean_village = aggregate(df[, c('X1', 'X2', 'X3', 'X4', 'X5')], list(df$village_name), mean)
+
+df_final = as.data.frame(matrix(data=NA, ncol=3, nrow=5))
+names(df_final) = c('country', 'city', 'individuals')
+rownames(df_final) = c('X1', 'X2', 'X3', 'X4', 'X5')
+
+for (cl in c('X1', 'X2', 'X3', 'X4', 'X5')){
+  df_int = df[,c('village_name', 'paese', cl)] 
+  var_all = var(df_int[,cl])
+  df_int$ind_minus_paese = NA
+  
+  for (i in 1:dim(df_int)[1]){
+    paese = df_int[i,"paese"]
+    df_int[i,"ind_minus_paese"] = df_int[i,cl] - mean_paese[which(mean_paese$Group.1 == paese),cl]
+  }
+  var_paese = var(df_int$ind_minus_paese)
+  
+  
+  df_int$ind_minus_village = NA
+  
+  for (i in 1:dim(df_int)[1]){
+    village = df_int[i,"village_name"]
+    df_int[i,"ind_minus_village"] = df_int[i,cl] - mean_village[which(mean_village$Group.1 == village),cl]
+  }
+  var_village = var(df_int$ind_minus_village)
+  
+  var_paese_ = (var_all-var_paese)/var_all
+  var_village_ = (var_paese-var_village)/var_all
+  #var_village_ = (var_all-var_village)/var_all
+  var_ind = var_village/var_all
+  
+  #var_paese_ = (var_all-var_paese)*100
+  #var_village_ = (var_paese-var_village)*100
+  #var_ind = 100 - (var_paese_ + var_village_)
+  df_final[cl,'country'] = var_paese_
+  df_final[cl,'city'] = var_village_
+  df_final[cl,'individuals'] = var_ind
+  cat(cl, var_paese_, var_village_, var_ind, '\n')
+  
+}
+
+df_final$cluster = rownames(df_final)
+df_final$samples_within_cities = 0
+df_final[6,] = c(0.8657261/100, 0.5115848/100, 98.0652916/100, 'genes', 0.5573975/100)
+df_final_m = melt(df_final, id.vars = c("cluster"))
+df_final_m$value = as.numeric(df_final_m$value)
+df_final_m$cluster = factor(df_final_m$cluster, levels=c('X1', 'X2', 'X3', 'X4', 'X5', 'genes'))
+
+
+library(wesanderson)
+library(scales)
+pie_plot = ggplot(df_final_m, aes(x="", y=value, fill=variable)) +
+  geom_bar(stat="identity", width=1, color="black") +
+  coord_polar("y", start=0) +
+  theme_bw()  +
+  facet_wrap(facets=.~ cluster, ncol=3) + 
+  theme(legend.position='bottom') + theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x=element_blank(),
+    # panel.border = element_blank(),
+    panel.grid=element_blank(),
+    axis.ticks = element_blank(),
+    plot.title=element_text(size=14, face="bold")
+  ) +
+  scale_fill_manual(values = wes_palette("Zissou1", n = 4)) #+
+geom_text(aes(y = value, 
+              label = percent(value)), size=2)
+
+pie_plot_color <- ggplot_gtable(ggplot_build(pie_plot))
+strip_right <- which(grepl('strip-t', pie_plot_color$layout$name))
+fills <- c("dodgerblue4",    "forestgreen" ,   "darkorchid1", "cornflowerblue", "gold",           "firebrick3" )
+k <- 1
+for (i in strip_right) {
+  j <- which(grepl('rect', pie_plot_color$grobs[[i]]$grobs[[1]]$childrenOrder))
+  pie_plot_color$grobs[[i]]$grobs[[1]]$children[[j]]$gp$fill <- fills[k]
+  k <- k+1
+}
+
+grid.draw(pie_plot_color)
+
+#pdf('prova_fig_2_pie.pdf', height = 6, width = 7)
+#grid.draw(pie_plot_color)
+#dev.off()
+
+```
+
+### Procrustes
+
+```{r}
+library(vegan)
+
+pca = read.table('G:/Il mio Drive/assegno_padova/clustering/new_analyses_2022/dim_reduction/pca.tsv', hea=T, sep=",")
+mds = read.table('G:/Il mio Drive/assegno_padova/clustering/new_analyses_2022/dim_reduction/mds.tsv', hea=T, sep=",")
+tsne = read.table('G:/Il mio Drive/assegno_padova/clustering/new_analyses_2022/dim_reduction/tsne.tsv', hea=T, sep=",")
+umap = read.table('G:/Il mio Drive/assegno_padova/clustering/new_analyses_2022/dim_reduction/umap.tsv', hea=T, sep=",")
+
+pca = pca[,c('X0', 'X1')]
+names(pca) = c('DIM1', 'DIM2')
+mds = mds[,c('DIM1', 'DIM2')]
+tsne = tsne[,c('DIM1', 'DIM2')]
+umap = umap[,c('DIM1', 'DIM2')]
+
+myproc<-procrustes(pca, mds)
+test1<-protest(pca, mds)
+myproc<-procrustes(pca, tsne)
+test2<-protest(pca, tsne)
+myproc<-procrustes(pca, umap)
+test3<-protest(pca, umap)
+myproc<-procrustes(mds, tsne)
+test4<-protest(mds, tsne)
+myproc<-procrustes(mds, umap)
+test5<-protest(mds, umap)
+myproc<-procrustes(umap, tsne)
+test6<-protest(umap, tsne)
+
+mean(test1$t0, test2$t0, test3$t0, test4$t0, test5$t0, test6$t0)
+```
+
