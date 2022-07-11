@@ -11,13 +11,6 @@ library(sjmisc)
 library(ggpubr)
 ### preferences plot -----
 
-
-first_muslim = read.table('../correlations_clustering/final_datasets/first/cluster_1_foods.tsv')[,1]
-first_sweets = read.table('../correlations_clustering/final_datasets/first/cluster_2_foods.tsv')[,1] 
-first_veggies = read.table('../correlations_clustering/final_datasets/first/cluster_3_foods.tsv')[,1] 
-first_fruits = read.table('../correlations_clustering/final_datasets/first/cluster_4_foods.tsv')[,1]
-first_dairy = read.table('../correlations_clustering/final_datasets/first/cluster_5_foods.tsv')[,1]
-
 raw_alcohol = read.table('../correlations_clustering/final_datasets/raw/cluster_1_foods_final.tsv')[,1] 
 raw_pork = read.table('../correlations_clustering/final_datasets/raw/cluster_2_foods_final.tsv')[,1]
 raw_sweets = read.table('../correlations_clustering/final_datasets/raw/cluster_3_foods_final.tsv')[,1]
@@ -39,10 +32,6 @@ preferences_plot_final = function(path, k, food_list, dataset_type, cat_to_remov
   cl = as.data.frame.matrix(table(df$paese, df$cl))
   cl_ratio = as.data.frame(t(apply(cl,1,function(x){x/sum(x)})))
   
-  if (str_contains(path, 'GMM')){
-    colnames(cl_ratio) = as.integer(colnames(cl_ratio)) + 1
-  }
-  
   cl_ratio$paese = rownames(cl_ratio)
   
   cl_m = melt(cl_ratio, id='paese')
@@ -57,21 +46,8 @@ preferences_plot_final = function(path, k, food_list, dataset_type, cat_to_remov
 
   ### foods paese	id	cl	1	2
   # preferences ---
-  if (str_contains(path, 'correlations')){
-    tab_assign_init = read.table("../dataset/5_food_db2_nosd0_norm_535.tsv", hea=T,sep="\t")
-    rownames(df) = df$id
-    target = tab_assign_init$id
-    df_sorted = df[match(target, df$id),]
-    tab_assign_init$paese = df_sorted$paese
-    tab_assign_init$id = NULL
-    tab_assign_init$id = df_sorted$id # le due colonne sono uguali, la elimino e la sposto in fondo
-    tab_assign_init$cl = df_sorted$cl
-    tab_assign_init$X1 = df_sorted$X1
-    tab_assign_init$X2 = df_sorted$X2
-    tab_assign = tab_assign_init
-  }else{
-    tab_assign = read.table(new_path, hea=T, sep="\t")
-  }
+ 
+  tab_assign = read.table(new_path, hea=T, sep="\t")
   
   k_columns = tail(names(tab_assign), n=k)
   
@@ -311,23 +287,6 @@ preferences_plot_final = function(path, k, food_list, dataset_type, cat_to_remov
   
 
   p_dendrogram = '...'
-  #p_dendrogram <- heatmaply(df_heatmap, 
-  #                          #dendrogram = "column",
-  #                          xlab = "", ylab = "", 
-  #                          main = "",
-  #                          #scale = "column",
-  #                          #margins = c(60,100,40,20),
-  #                          grid_color = "white",
-  #                          grid_width = 0.01,
-  #                          titleX = FALSE,
-  #                          hide_colorbar = FALSE,
-  #                          branches_lwd = 0.1,
-  #                          #label_names = c("Country", "Feature:", "Value"),
-  #                          fontsize_row = 5, fontsize_col = 5,
-  #                          labCol = colnames(df_heatmap),
-  #                          labRow = rownames(df_heatmap),
-  #                          heatmap_layers = theme(axis.line=element_blank())
-  #)
   
   return(list(props_plot, gg_sign, p_dendrogram, p_sign, cl_means, final_food_to_remove, distr_plot, p_sign_legend))
   
