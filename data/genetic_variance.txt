@@ -1,0 +1,5 @@
+grp	var1	var2	vcov	sdcor	prop
+Between countries	genes	genes			0.008512959
+Between cities	genes	genes			0.005072441
+Within cities	genes	genes			0.006209792
+Among individuals	genes	genes			0.980204808
