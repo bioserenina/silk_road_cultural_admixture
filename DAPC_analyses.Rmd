@@ -1,19 +1,5 @@
----
-title: "Cultural clustering"
-output:
-  rmdformats::html_clean:
-  self_contained: true
-thumbnails: false
-lightbox: true
-gallery: true
-highlight: tango
-fig_caption: yes
-use_bookdown: true
----
-  
-```{r message=FALSE, warning=FALSE, include=FALSE}
-source(paste0(path_abs, 'clustering_R_function_first_raw_2022.R'))
-source(paste0(path_abs , 'clustering_R_function_village_2022.R'))
+### DAPC (BIC EVALUATION, DAPC COMPUTATION)
+
 library(ggplot2)
 library(reshape)
 library(adegenet)
@@ -50,20 +36,13 @@ raw_sweets = read.table('data/cluster_3_foods_final.tsv')[,1]
 raw_veggies = read.table('data/cluster_4_foods_final.tsv')[,1]
 raw_dairy = read.table('data/cluster_5_foods_final.tsv')[,1]
 raw_fruits = read.table('data/cluster_6_foods_final.tsv')[,1]
-```
 
-```{r}
 layer = 1
 dataset_type = 'raw'
 cat_to_remove='group_and_single'
-#cat_to_remove='only_group'
-```
 
-## norm matrix {.tabset}
 
 ### BIC EVALUATION
-
-```{r, message=FALSE, warning=FALSE}
 
 tab_init = read.table(pref_file, sep="\t", hea=T, row.names=1)
 # tab_init contains the individual food preferences. We are not allowed to publish the data, but they can be obtained from Prof. Paolo Gasparini.
@@ -88,12 +67,10 @@ bic_plot = ggplot(data=df_bic, aes(x=K, y=bic, group=1)) +
              aes(x=K,y=bic),size=3, color='red') +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   geom_text(aes(label = round(bic, digits=2)), hjust = 0, nudge_x = 0.07, size=3)
-```
 
+### DAPC RESULTS 
 
-```{r loop2, echo=FALSE, message=FALSE, warning=FALSE}
-
-for (k in c(2,3,4,5,6,7)){
+for (k in c(4,5,6,7)){
   food_list = all_food
   
   grp_fc <- find.clusters(tab_init, max.n.clust=20, pca.select = "percVar", perc.pca = 100,
@@ -110,37 +87,3 @@ for (k in c(2,3,4,5,6,7)){
   dataset_with_probs = cbind(dataset, dapc_cluster$posterior)
   
   # you can find the final results for 4, 5, 6 and 7 clusters within the folder "data"
-```
-
-### Procrustes
-
-```{r}
-library(vegan)
-
-pca = read.table('data/pca.tsv', hea=T, sep=",")
-mds = read.table('data/mds.tsv', hea=T, sep=",")
-tsne = read.table('data/tsne.tsv', hea=T, sep=",")
-umap = read.table('data/umap.tsv', hea=T, sep=",")
-
-pca = pca[,c('X0', 'X1')]
-names(pca) = c('DIM1', 'DIM2')
-mds = mds[,c('DIM1', 'DIM2')]
-tsne = tsne[,c('DIM1', 'DIM2')]
-umap = umap[,c('DIM1', 'DIM2')]
-
-myproc<-procrustes(pca, mds)
-test1<-protest(pca, mds)
-myproc<-procrustes(pca, tsne)
-test2<-protest(pca, tsne)
-myproc<-procrustes(pca, umap)
-test3<-protest(pca, umap)
-myproc<-procrustes(mds, tsne)
-test4<-protest(mds, tsne)
-myproc<-procrustes(mds, umap)
-test5<-protest(mds, umap)
-myproc<-procrustes(umap, tsne)
-test6<-protest(umap, tsne)
-
-mean(test1$t0, test2$t0, test3$t0, test4$t0, test5$t0, test6$t0)
-```
-
