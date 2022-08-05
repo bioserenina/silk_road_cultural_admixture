@@ -2,10 +2,10 @@
 
 library(vegan)
 
-pca = read.table('data/pca.tsv', hea=T, sep=",")
-mds = read.table('data/mds.tsv', hea=T, sep=",")
-tsne = read.table('data/tsne.tsv', hea=T, sep=",")
-umap = read.table('data/umap.tsv', hea=T, sep=",")
+pca = read.table('data/pca_git.tsv', hea=T, sep=",")
+mds = read.table('data/mds_git.tsv', hea=T, sep=",")
+tsne = read.table('data/tsne_git.tsv', hea=T, sep=",")
+umap = read.table('data/umap_git.tsv', hea=T, sep=",")
 
 pca = pca[,c('X0', 'X1')]
 names(pca) = c('DIM1', 'DIM2')
