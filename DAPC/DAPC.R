@@ -58,7 +58,7 @@ df_bic$K = rownames(df_bic)
 names(df_bic) = c('bic', 'K')
 df_bic$K = factor(df_bic$K, levels=c(df_bic$K))
 selected_bic_df = df_bic[which(df_bic$K == names(find_cl$stat)),]
-selected_bic_df = df_bic[which(df_bic$K == 'K=5'),]
+#selected_bic_df = df_bic[which(df_bic$K == 'K=5'),]
 
 bic_plot = ggplot(data=df_bic, aes(x=K, y=bic, group=1)) +
   geom_line()+
