@@ -1,6 +1,6 @@
 ### The impact of cultural and genetic structure on food choices along the Silk Road
 
-This repository contains the code and results of the paper "The impact of cultural and genetic structure on food choices along the Silk Road".
+This repository contains the code and results of the paper ["The impact of cultural and genetic structure on food choices along the Silk Road"](https://www.pnas.org/doi/abs/10.1073/pnas.2209311119).
 
 * folder *preprocessing*: quality check, initial preprocessing of the food preferences and clustering of the foods (Python code)
 * folder *dimensionality_reduction*: code for pca, mds, tsne and umap
